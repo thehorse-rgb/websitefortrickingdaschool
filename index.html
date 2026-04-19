@@ -1,51 +1,454 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=0">
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐍 Snake Spiel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-        <script type="module" src="scripts/tptw.js"></script>
-        <script type="module" src="scripts/displays.js"></script>
-        <script type="module" src="scripts/settings.js"></script>
-        <script type="module" src="scripts/hud.js"></script>
-        <script type="module" src="scripts/display.js"></script>
-        <script type="module" src="scripts/controls.js"></script>
-        <script type="module" src="scripts/theme.js"></script>
-        <script type="module" src="scripts/ambient.js"></script>
-        <script type="module" src="scripts/particle.js"></script>
-        <script type="module" src="scripts/cursor.js"></script>
-        <script type="module" src="scripts/save.js"></script>
-        <script type="module" src="scripts/mods.js"></script>
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #eee;
+            flex-direction: column;
+        }
 
-        <script type="module" src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
-        <script type="module" src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js"></script>
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00b894, #00cec9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+        }
 
-        <link rel="shortcut icon" href="images/Favicon.png" type="image/x-icon">
+        #scoreboard {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
 
-        <link rel="stylesheet" href="scripts/style/style.css">
-        <link rel="stylesheet" href="scripts/style/fonts.css">
-        <link rel="stylesheet" href="scripts/style/particles.css">
-    </head>
-    <body selected="none" grid-size="16" display="default">
-        <div id="ParticleContainer"></div>
-        <div id="PlaceholderContainer"></div>
+        #scoreboard span {
+            background: rgba(255,255,255,0.08);
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
 
-        <script type="module">
-            import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-            import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js";
+        .label {
+            color: #00cec9;
+        }
 
-            const firebaseConfig = {
-              apiKey: "AIzaSyCWcUsQWn4xNSrZ5wQIdvJSeS1qr3KMCLo",
-              authDomain: "thepowdertoy-750c7.firebaseapp.com",
-              databaseURL: "https://thepowdertoy-750c7-default-rtdb.firebaseio.com",
-              projectId: "thepowdertoy-750c7",
-              storageBucket: "thepowdertoy-750c7.appspot.com",
-              messagingSenderId: "860529669764",
-              appId: "1:860529669764:web:50d0c59b170e8ae1e6b4d1",
-              measurementId: "G-TBC2KPQMS4"
+        canvas {
+            border: 3px solid #00b894;
+            border-radius: 8px;
+            background: #16213e;
+            box-shadow: 0 0 30px rgba(0, 206, 201, 0.2);
+        }
+
+        #message {
+            margin-top: 15px;
+            font-size: 1rem;
+            color: #aaa;
+            text-align: center;
+            min-height: 24px;
+        }
+
+        #controls {
+            margin-top: 20px;
+            display: none;
+            gap: 5px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .ctrl-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        .ctrl-btn {
+            width: 60px;
+            height: 60px;
+            font-size: 1.8rem;
+            border: none;
+            border-radius: 12px;
+            background: rgba(0, 184, 148, 0.3);
+            color: #fff;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .ctrl-btn:active {
+            background: rgba(0, 184, 148, 0.7);
+        }
+
+        @media (pointer: coarse) {
+            #controls { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🐍 Snake</h1>
+
+<div id="scoreboard">
+    <span><span class="label">Punkte:</span> <span id="score">0</span></span>
+    <span><span class="label">Rekord:</span> <span id="highscore">0</span></span>
+</div>
+
+<canvas id="gameCanvas" width="480" height="480"></canvas>
+
+<div id="message">Drücke eine Pfeiltaste oder Tippe zum Starten 🎮</div>
+
+<!-- Mobile Controls -->
+<div id="controls">
+    <div class="ctrl-row">
+        <button class="ctrl-btn" data-dir="up">⬆️</button>
+    </div>
+    <div class="ctrl-row">
+        <button class="ctrl-btn" data-dir="left">⬅️</button>
+        <button class="ctrl-btn" data-dir="down">⬇️</button>
+        <button class="ctrl-btn" data-dir="right">➡️</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const highscoreEl = document.getElementById('highscore');
+    const messageEl = document.getElementById('message');
+
+    // --- Konfiguration ---
+    const GRID = 20;
+    const COLS = canvas.width / GRID;
+    const ROWS = canvas.height / GRID;
+    const BASE_SPEED = 130;       // ms pro Tick (Startgeschwindigkeit)
+    const MIN_SPEED = 60;         // schnellste Geschwindigkeit
+
+    let snake, direction, nextDirection, food, score, highscore, gameLoop, gameState;
+    // gameState: 'idle' | 'running' | 'over'
+
+    highscore = parseInt(localStorage.getItem('snakeHighscore')) || 0;
+    highscoreEl.textContent = highscore;
+
+    function init() {
+        const midX = Math.floor(COLS / 2);
+        const midY = Math.floor(ROWS / 2);
+        snake = [
+            { x: midX, y: midY },
+            { x: midX - 1, y: midY },
+            { x: midX - 2, y: midY }
+        ];
+        direction = 'right';
+        nextDirection = 'right';
+        score = 0;
+        scoreEl.textContent = score;
+        placeFood();
+        gameState = 'idle';
+        draw();
+    }
+
+    function placeFood() {
+        let pos;
+        do {
+            pos = {
+                x: Math.floor(Math.random() * COLS),
+                y: Math.floor(Math.random() * ROWS)
             };
-          
-            const app = initializeApp(firebaseConfig);
-            const analytics = getAnalytics(app);
-        </script>
-    </body>
+        } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+        food = pos;
+    }
+
+    function getSpeed() {
+        return Math.max(MIN_SPEED, BASE_SPEED - score * 2);
+    }
+
+    // --- Zeichnen ---
+    function draw() {
+        // Hintergrund
+        ctx.fillStyle = '#16213e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Gitter (dezentes)
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x <= COLS; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * GRID, 0);
+            ctx.lineTo(x * GRID, canvas.height);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= ROWS; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * GRID);
+            ctx.lineTo(canvas.width, y * GRID);
+            ctx.stroke();
+        }
+
+        // Essen (Apfel)
+        const fx = food.x * GRID + GRID / 2;
+        const fy = food.y * GRID + GRID / 2;
+        const fr = GRID / 2 - 2;
+
+        // Apfel-Glow
+        ctx.shadowColor = '#ff6b6b';
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath();
+        ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Apfel-Stiel
+        ctx.strokeStyle = '#2ed573';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy - fr + 1);
+        ctx.quadraticCurveTo(fx + 4, fy - fr - 6, fx + 8, fy - fr - 2);
+        ctx.stroke();
+
+        // Schlange zeichnen
+        snake.forEach((seg, i) => {
+            const x = seg.x * GRID;
+            const y = seg.y * GRID;
+            const pad = 1;
+
+            if (i === 0) {
+                // Kopf
+                ctx.shadowColor = '#00b894';
+                ctx.shadowBlur = 12;
+                ctx.fillStyle = '#00b894';
+                roundRect(ctx, x + pad, y + pad, GRID - pad * 2, GRID - pad * 2, 5);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Augen
+                drawEyes(seg, direction);
+            } else {
+                // Körper – Farbverlauf vom Kopf zum Schwanz
+                const t = i / snake.length;
+                const r = Math.round(0 + t * 15);
+                const g = Math.round(184 - t * 80);
+                const b = Math.round(148 - t * 60);
+                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                roundRect(ctx, x + pad, y + pad, GRID - pad * 2, GRID - pad * 2, 4);
+                ctx.fill();
+            }
+        });
+
+        // Game Over Overlay
+        if (gameState === 'over') {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ff4757';
+            ctx.font = 'bold 48px Segoe UI, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 30);
+
+            ctx.fillStyle = '#eee';
+            ctx.font = '22px Segoe UI, sans-serif';
+            ctx.fillText(`Punkte: ${score}`, canvas.width / 2, canvas.height / 2 + 15);
+
+            ctx.fillStyle = '#aaa';
+            ctx.font = '16px Segoe UI, sans-serif';
+            ctx.fillText('Drücke LEERTASTE oder Tippe zum Neustarten', canvas.width / 2, canvas.height / 2 + 55);
+        }
+
+        // Idle Overlay
+        if (gameState === 'idle') {
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#eee';
+            ctx.font = '22px Segoe UI, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Drücke eine Pfeiltaste zum Starten', canvas.width / 2, canvas.height / 2 + 5);
+        }
+    }
+
+    function drawEyes(head, dir) {
+        const cx = head.x * GRID + GRID / 2;
+        const cy = head.y * GRID + GRID / 2;
+        let e1x, e1y, e2x, e2y;
+        const offset = 4;
+        const eyeR = 2.5;
+
+        switch (dir) {
+            case 'right':
+                e1x = cx + 3; e1y = cy - offset;
+                e2x = cx + 3; e2y = cy + offset;
+                break;
+            case 'left':
+                e1x = cx - 3; e1y = cy - offset;
+                e2x = cx - 3; e2y = cy + offset;
+                break;
+            case 'up':
+                e1x = cx - offset; e1y = cy - 3;
+                e2x = cx + offset; e2y = cy - 3;
+                break;
+            case 'down':
+                e1x = cx - offset; e1y = cy + 3;
+                e2x = cx + offset; e2y = cy + 3;
+                break;
+        }
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = '#1a1a2e';
+        ctx.beginPath(); ctx.arc(e1x, e1y, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(e2x, e2y, 1.2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    // --- Spiellogik ---
+    function update() {
+        direction = nextDirection;
+
+        const head = snake[0];
+        let nx = head.x;
+        let ny = head.y;
+
+        switch (direction) {
+            case 'up':    ny--; break;
+            case 'down':  ny++; break;
+            case 'left':  nx--; break;
+            case 'right': nx++; break;
+        }
+
+        // Wandkollision
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
+            gameOver();
+            return;
+        }
+
+        // Selbstkollision
+        if (snake.some(s => s.x === nx && s.y === ny)) {
+            gameOver();
+            return;
+        }
+
+        const newHead = { x: nx, y: ny };
+        snake.unshift(newHead);
+
+        // Essen gegessen?
+        if (nx === food.x && ny === food.y) {
+            score++;
+            scoreEl.textContent = score;
+            placeFood();
+            // Speed anpassen
+            clearInterval(gameLoop);
+            gameLoop = setInterval(tick, getSpeed());
+        } else {
+            snake.pop();
+        }
+
+        draw();
+    }
+
+    function tick() {
+        if (gameState !== 'running') return;
+        update();
+    }
+
+    function startGame() {
+        gameState = 'running';
+        messageEl.textContent = '';
+        clearInterval(gameLoop);
+        gameLoop = setInterval(tick, getSpeed());
+    }
+
+    function gameOver() {
+        gameState = 'over';
+        clearInterval(gameLoop);
+        if (score > highscore) {
+            highscore = score;
+            localStorage.setItem('snakeHighscore', highscore);
+            highscoreEl.textContent = highscore;
+            messageEl.textContent = '🏆 Neuer Rekord!';
+        } else {
+            messageEl.textContent = '';
+        }
+        draw();
+    }
+
+    // --- Steuerung ---
+    function setDirection(dir) {
+        const opposites = { up: 'down', down: 'up', left: 'right', right: 'left' };
+        if (dir === opposites[direction]) return; // Keine 180°-Wende
+        nextDirection = dir;
+
+        if (gameState === 'idle') startGame();
+    }
+
+    document.addEventListener('keydown', e => {
+        const keyMap = {
+            ArrowUp: 'up', ArrowDown: 'down',
+            ArrowLeft: 'left', ArrowRight: 'right',
+            w: 'up', s: 'down', a: 'left', d: 'right'
+        };
+
+        if (keyMap[e.key]) {
+            e.preventDefault();
+            setDirection(keyMap[e.key]);
+        }
+
+        if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            if (gameState === 'over') restartGame();
+        }
+    });
+
+    // Mobile Buttons
+    document.querySelectorAll('.ctrl-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setDirection(btn.dataset.dir);
+        });
+    });
+
+    // Canvas-Tipp zum Starten/Neustarten
+    canvas.addEventListener('click', () => {
+        if (gameState === 'over') restartGame();
+        else if (gameState === 'idle') startGame();
+    });
+
+    function restartGame() {
+        clearInterval(gameLoop);
+        init();
+        messageEl.textContent = 'Drücke eine Pfeiltaste zum Starten 🎮';
+    }
+
+    // --- Initialisierung ---
+    init();
+</script>
+
+</body>
 </html>
+
